@@ -1,0 +1,1779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>CardioMonitor Pro — C++ DSP Engine</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;600;800&display=swap" rel="stylesheet"/>
+
+<style>
+/* ─── DESIGN SYSTEM ─────────────────────────────────────────────────────── */
+:root {
+  --bg:       #040810;
+  --bg2:      #080f1c;
+  --bg3:      #0c1628;
+  --panel:    #0e1a30;
+  --border:   rgba(0,200,160,0.18);
+  --accent:   #00e5a0;
+  --accent2:  #00aaff;
+  --accent3:  #ff4d6d;
+  --accent4:  #ffd166;
+  --text:     #c8dde8;
+  --text2:    #6a8a9a;
+  --danger:   #ff4d6d;
+  --warning:  #ffd166;
+  --good:     #00e5a0;
+  --glow:     0 0 24px rgba(0,229,160,0.3);
+  --mono:     'Space Mono', monospace;
+  --sans:     'Syne', sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin:0; padding:0; }
+
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  height: 100%;
+  overflow-x: hidden;
+}
+
+/* ─── GRID LAYOUT ───────────────────────────────────────────────────────── */
+#app {
+  display: grid;
+  grid-template-rows: 56px 1fr;
+  grid-template-columns: 260px 1fr;
+  height: 100vh;
+  gap: 0;
+}
+
+/* ─── TOPBAR ──────────────────────────────────────────────────────────── */
+#topbar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 0 20px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  z-index: 100;
+}
+
+.logo {
+  font-family: var(--sans);
+  font-weight: 800;
+  font-size: 18px;
+  color: var(--accent);
+  letter-spacing: -0.5px;
+  white-space: nowrap;
+}
+.logo span { color: var(--accent2); }
+
+.status-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 11px;
+  border: 1px solid var(--border);
+  background: rgba(0,229,160,0.05);
+}
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pulse-dot 2s infinite;
+}
+@keyframes pulse-dot {
+  0%,100%{opacity:1} 50%{opacity:.3}
+}
+
+.top-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
+}
+
+select, button {
+  font-family: var(--mono);
+  font-size: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg3);
+  color: var(--text);
+  padding: 6px 14px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all .2s;
+}
+select:hover, button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.btn-primary {
+  background: var(--accent);
+  color: #000;
+  font-weight: 700;
+  border-color: var(--accent);
+}
+.btn-primary:hover { background: #00ffb3; color:#000; border-color:#00ffb3; }
+
+.severity-badge {
+  padding: 4px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+}
+.sev-normal   { background: rgba(0,229,160,.15); color: var(--good); border: 1px solid rgba(0,229,160,.4); }
+.sev-warning  { background: rgba(255,209,102,.1); color: var(--warning); border: 1px solid rgba(255,209,102,.4); }
+.sev-critical { background: rgba(255,77,109,.12); color: var(--danger); border: 1px solid rgba(255,77,109,.4); animation: flash-crit 1s infinite; }
+@keyframes flash-crit { 0%,100%{opacity:1} 50%{opacity:.6} }
+
+/* ─── SIDEBAR ─────────────────────────────────────────────────────────── */
+#sidebar {
+  background: var(--bg2);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+  padding: 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sidebar-section {
+  padding: 4px 16px 8px;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  color: var(--text2);
+  text-transform: uppercase;
+  margin-top: 10px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 16px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text2);
+  border-left: 2px solid transparent;
+  transition: all .15s;
+  user-select: none;
+}
+.nav-item:hover { background: rgba(0,229,160,.05); color: var(--text); }
+.nav-item.active {
+  background: rgba(0,229,160,.08);
+  color: var(--accent);
+  border-left-color: var(--accent);
+}
+.nav-icon { font-size: 14px; opacity:.8; }
+
+/* HRV mini metrics */
+.metric-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 0 12px;
+  margin-top: 4px;
+}
+.metric-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+.metric-label {
+  font-size: 9px;
+  color: var(--text2);
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.metric-value {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--accent);
+  line-height: 1.2;
+  margin-top: 2px;
+}
+.metric-unit {
+  font-size: 10px;
+  color: var(--text2);
+  font-weight: 400;
+}
+
+/* Risk gauge */
+#risk-gauge-container {
+  padding: 12px 16px;
+  text-align: center;
+}
+.risk-gauge-wrap {
+  position: relative;
+  width: 140px;
+  margin: 0 auto;
+}
+#risk-gauge { width:140px; height:80px; }
+.risk-score-label {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  text-align: center;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.risk-cat {
+  font-size: 11px;
+  color: var(--text2);
+  margin-top: 4px;
+  letter-spacing: .04em;
+}
+
+/* ─── MAIN CONTENT ───────────────────────────────────────────────────── */
+#main {
+  overflow-y: auto;
+  background: var(--bg);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ─── PANELS ─────────────────────────────────────────────────────────── */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--text2);
+}
+.panel-title { color: var(--text); font-size: 12px; }
+.panel-body { padding: 14px 16px; }
+
+/* 2-col grid panels */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+
+/* ECG canvas */
+#ecg-canvas-wrap {
+  position: relative;
+  width: 100%;
+  height: 180px;
+  overflow: hidden;
+}
+#ecg-canvas {
+  position: absolute;
+  top: 0; left: 0;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+}
+.ecg-info-overlay {
+  position: absolute;
+  top: 8px; right: 12px;
+  font-size: 11px;
+  color: var(--accent2);
+  pointer-events: none;
+}
+.grid-lines {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(0,229,160,.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,229,160,.04) 1px, transparent 1px);
+  background-size: 40px 20px;
+  pointer-events: none;
+}
+
+/* 3D container */
+#canvas-3d {
+  width: 100%;
+  height: 280px;
+  border-radius: 4px;
+  overflow: hidden;
+  cursor: grab;
+}
+#canvas-3d:active { cursor: grabbing; }
+
+/* Chart areas */
+.chart-area { position: relative; height: 180px; }
+.chart-area canvas { position: absolute; inset: 0; }
+
+/* Findings list */
+.finding-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255,255,255,.04);
+  font-size: 12px;
+}
+.finding-item:last-child { border-bottom: none; }
+.finding-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.conf-bar {
+  height: 3px;
+  background: var(--accent);
+  border-radius: 2px;
+  margin-top: 2px;
+}
+
+/* Interval table */
+.interval-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.interval-table td { padding: 7px 8px; border-bottom: 1px solid rgba(255,255,255,.04); }
+.interval-table td:last-child { text-align: right; color: var(--accent2); font-weight: 700; }
+.tag-normal  { color: var(--good);    font-size: 10px; }
+.tag-warning { color: var(--warning); font-size: 10px; }
+.tag-danger  { color: var(--danger);  font-size: 10px; }
+
+/* Tabs */
+.tab-bar {
+  display: flex;
+  gap: 2px;
+  padding: 8px 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+.tab {
+  padding: 6px 16px;
+  font-size: 11px;
+  letter-spacing: .04em;
+  cursor: pointer;
+  color: var(--text2);
+  border-radius: 4px 4px 0 0;
+  transition: all .15s;
+  border: 1px solid transparent;
+  border-bottom: none;
+  margin-bottom: -1px;
+}
+.tab.active {
+  background: var(--panel);
+  color: var(--accent);
+  border-color: var(--border);
+  border-bottom-color: var(--panel);
+}
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+
+/* Loading overlay */
+#loading-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(4,8,16,.9);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+  gap: 16px;
+  transition: opacity .4s;
+}
+#loading-overlay.hidden { opacity: 0; pointer-events: none; }
+
+.spinner {
+  width: 48px; height: 48px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loading-text { font-size: 14px; color: var(--accent); letter-spacing: .1em; }
+.loading-sub  { font-size: 11px; color: var(--text2); }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: var(--bg2); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+/* Annotations */
+.ann-label {
+  position: absolute;
+  top: 2px;
+  font-size: 9px;
+  color: var(--accent4);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.ann-normal  { color: var(--good); }
+.ann-pvc     { color: var(--danger); }
+
+/* Tooltip */
+#tooltip {
+  position: fixed;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 11px;
+  pointer-events: none;
+  z-index: 500;
+  display: none;
+  max-width: 200px;
+  line-height: 1.6;
+}
+
+/* Realtime indicator */
+.rt-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--danger);
+  animation: blink .5s infinite;
+  display: inline-block;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
+
+/* DFA scatter */
+.dfa-label {
+  font-size: 10px;
+  fill: var(--text2);
+  font-family: var(--mono);
+}
+
+/* Entropy bars */
+.ent-bar-wrap { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.ent-bar-row  { display: flex; align-items: center; gap: 10px; font-size: 11px; }
+.ent-bar-name { width: 80px; color: var(--text2); }
+.ent-bar-bg   { flex: 1; height: 8px; background: rgba(255,255,255,.05); border-radius: 4px; overflow: hidden; }
+.ent-bar-fill { height: 100%; border-radius: 4px; transition: width .6s ease; }
+.ent-bar-val  { width: 50px; text-align: right; color: var(--accent2); font-size: 11px; }
+
+/* Animated ECG line */
+.ecg-fade {
+  mask-image: linear-gradient(90deg, transparent 0%, black 8%, black 92%, transparent 100%);
+}
+
+/* Responsive hints */
+@media (max-width: 1200px) {
+  .grid-4 { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 900px) {
+  #app { grid-template-columns: 1fr; }
+  #sidebar { display: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- LOADING OVERLAY -->
+<div id="loading-overlay">
+  <div class="spinner"></div>
+  <div class="loading-text">CARDIOMONITOR PRO</div>
+  <div class="loading-sub" id="loading-msg">Initializing C++ DSP Engine…</div>
+</div>
+
+<!-- TOOLTIP -->
+<div id="tooltip"></div>
+
+<!-- APP SHELL -->
+<div id="app">
+
+  <!-- TOP BAR -->
+  <header id="topbar">
+    <div class="logo">Cardio<span>Monitor</span> <sup style="font-size:9px;opacity:.5">PRO</sup></div>
+    <div class="status-pill">
+      <span class="status-dot"></span>
+      <span id="engine-status">C++ Engine</span>
+    </div>
+    <div class="status-pill" id="source-pill" style="display:none">
+      <span style="color:var(--accent2)" id="source-label">—</span>
+    </div>
+
+    <div class="top-controls">
+      <select id="record-select" title="PhysioNet MIT-BIH Record">
+        <option value="">— Select Record —</option>
+      </select>
+      <select id="duration-select">
+        <option value="30">30s</option>
+        <option value="60" selected>60s</option>
+        <option value="120">120s</option>
+        <option value="180">180s</option>
+      </select>
+      <button class="btn-primary" onclick="loadAndAnalyze()">▶ ANALYZE</button>
+      <button onclick="startRealtime()" id="rt-btn">⬤ LIVE</button>
+      <div id="severity-badge" class="severity-badge sev-normal">NORMAL</div>
+    </div>
+  </header>
+
+  <!-- SIDEBAR -->
+  <nav id="sidebar">
+    <div class="sidebar-section">Navigation</div>
+    <div class="nav-item active" onclick="showView('ecg')" data-view="ecg">
+      <span class="nav-icon">📈</span> ECG Signal
+    </div>
+    <div class="nav-item" onclick="showView('hrv')" data-view="hrv">
+      <span class="nav-icon">💗</span> HRV Analysis
+    </div>
+    <div class="nav-item" onclick="showView('frequency')" data-view="frequency">
+      <span class="nav-icon">〰</span> Frequency Domain
+    </div>
+    <div class="nav-item" onclick="showView('nonlinear')" data-view="nonlinear">
+      <span class="nav-icon">🔀</span> Nonlinear Dynamics
+    </div>
+    <div class="nav-item" onclick="showView('3d')" data-view="3d">
+      <span class="nav-icon">🧊</span> 3D Visualization
+    </div>
+    <div class="nav-item" onclick="showView('arrhythmia')" data-view="arrhythmia">
+      <span class="nav-icon">⚠</span> Arrhythmia
+    </div>
+
+    <div class="sidebar-section">Metrics</div>
+    <div id="sidebar-metrics" class="metric-row">
+      <div class="metric-card">
+        <div class="metric-label">HR</div>
+        <div class="metric-value" id="m-hr">—</div>
+        <div class="metric-unit">bpm</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">SDNN</div>
+        <div class="metric-value" id="m-sdnn">—</div>
+        <div class="metric-unit">ms</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">RMSSD</div>
+        <div class="metric-value" id="m-rmssd">—</div>
+        <div class="metric-unit">ms</div>
+      </div>
+      <div class="metric-card">
+        <div class="metric-label">pNN50</div>
+        <div class="metric-value" id="m-pnn50">—</div>
+        <div class="metric-unit">%</div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">Risk Index</div>
+    <div id="risk-gauge-container">
+      <div class="risk-gauge-wrap">
+        <canvas id="risk-gauge"></canvas>
+        <div class="risk-score-label" id="risk-score-label">—</div>
+      </div>
+      <div class="risk-cat" id="risk-cat">Awaiting Analysis</div>
+    </div>
+
+    <div class="sidebar-section">Compute</div>
+    <div style="padding:0 12px; font-size:10px; color:var(--text2); line-height:2;">
+      <div>Engine: <span id="info-engine" style="color:var(--accent)">C++ / Python</span></div>
+      <div>Record: <span id="info-record" style="color:var(--accent2)">—</span></div>
+      <div>Peaks: <span id="info-peaks" style="color:var(--text)">—</span></div>
+      <div>Time: <span id="info-time" style="color:var(--text)">—</span> ms</div>
+    </div>
+  </nav>
+
+  <!-- MAIN CONTENT -->
+  <main id="main">
+
+    <!-- ─── VIEW: ECG ────────────────────────────────────────── -->
+    <div id="view-ecg" class="view-section">
+
+      <!-- Live ECG strip -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">ECG Lead II — Real-Time Strip</span>
+          <span style="color:var(--text2);font-size:11px">
+            <span class="rt-dot" id="rt-indicator" style="display:none"></span>
+            <span id="ecg-fs-label">360 Hz · 25mm/s · 10mm/mV</span>
+          </span>
+        </div>
+        <div id="ecg-canvas-wrap">
+          <div class="grid-lines"></div>
+          <canvas id="ecg-canvas"></canvas>
+          <div class="ecg-info-overlay" id="ecg-cursor-info"></div>
+        </div>
+      </div>
+
+      <!-- Interval measurements -->
+      <div class="grid-2">
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">ECG Intervals</span></div>
+          <div class="panel-body" style="padding:0 16px">
+            <table class="interval-table">
+              <tr><td>PR Interval</td><td id="iv-pr">—</td><td id="iv-pr-tag" class="tag-normal">—</td></tr>
+              <tr><td>QRS Duration</td><td id="iv-qrs">—</td><td id="iv-qrs-tag" class="tag-normal">—</td></tr>
+              <tr><td>QT Interval</td><td id="iv-qt">—</td><td id="iv-qt-tag" class="tag-normal">—</td></tr>
+              <tr><td>QTc (Bazett)</td><td id="iv-qtc">—</td><td id="iv-qtc-tag" class="tag-normal">—</td></tr>
+              <tr><td>ST Elevation</td><td id="iv-st">—</td><td id="iv-st-tag" class="tag-normal">—</td></tr>
+            </table>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Beat Annotations</span></div>
+          <div class="panel-body" id="ann-list" style="max-height:150px;overflow-y:auto;font-size:11px">
+            <span style="color:var(--text2)">Load a record to see annotations</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- FFT spectrum -->
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">FFT Power Spectrum — ECG Signal</span></div>
+        <div class="panel-body chart-area" style="height:160px">
+          <canvas id="fft-chart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── VIEW: HRV ────────────────────────────────────────── -->
+    <div id="view-hrv" class="view-section" style="display:none">
+
+      <div class="grid-4">
+        <div class="panel"><div class="panel-body" style="text-align:center">
+          <div class="metric-label">Mean RR</div>
+          <div class="metric-value" id="hrv-meanrr" style="font-size:28px">—</div>
+          <div class="metric-unit">ms</div>
+        </div></div>
+        <div class="panel"><div class="panel-body" style="text-align:center">
+          <div class="metric-label">SDNN</div>
+          <div class="metric-value" id="hrv-sdnn" style="font-size:28px">—</div>
+          <div class="metric-unit">ms</div>
+        </div></div>
+        <div class="panel"><div class="panel-body" style="text-align:center">
+          <div class="metric-label">RMSSD</div>
+          <div class="metric-value" id="hrv-rmssd" style="font-size:28px">—</div>
+          <div class="metric-unit">ms</div>
+        </div></div>
+        <div class="panel"><div class="panel-body" style="text-align:center">
+          <div class="metric-label">pNN50</div>
+          <div class="metric-value" id="hrv-pnn50" style="font-size:28px">—</div>
+          <div class="metric-unit">%</div>
+        </div></div>
+      </div>
+
+      <!-- RR tachogram -->
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">RR Interval Tachogram</span></div>
+        <div class="panel-body chart-area">
+          <canvas id="rr-chart"></canvas>
+        </div>
+      </div>
+
+      <!-- Poincaré plot -->
+      <div class="grid-2">
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Poincaré Plot (RRₙ vs RRₙ₊₁)</span></div>
+          <div class="panel-body chart-area">
+            <canvas id="poincare-chart"></canvas>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Poincaré Metrics</span></div>
+          <div class="panel-body">
+            <table class="interval-table">
+              <tr><td>SD1 (short-term)</td><td id="poi-sd1">—</td><td class="tag-normal">ms</td></tr>
+              <tr><td>SD2 (long-term)</td><td id="poi-sd2">—</td><td class="tag-normal">ms</td></tr>
+              <tr><td>SD1/SD2 ratio</td><td id="poi-ratio">—</td><td class="tag-normal"></td></tr>
+              <tr><td>CSI (cardiac stress)</td><td id="poi-csi">—</td><td class="tag-normal"></td></tr>
+              <tr><td>CVI (vagal index)</td><td id="poi-cvi">—</td><td class="tag-normal"></td></tr>
+              <tr><td>Ellipse area</td><td id="poi-area">—</td><td class="tag-normal">ms²</td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── VIEW: FREQUENCY ──────────────────────────────────── -->
+    <div id="view-frequency" class="view-section" style="display:none">
+
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">HRV Power Spectral Density — Welch Method</span></div>
+        <div class="panel-body chart-area" style="height:220px">
+          <canvas id="psd-chart"></canvas>
+        </div>
+      </div>
+
+      <div class="grid-3">
+        <div class="panel"><div class="panel-body" style="text-align:center">
+          <div class="metric-label">VLF Power (0.003–0.04 Hz)</div>
+          <div class="metric-value" id="freq-vlf" style="font-size:22px;color:var(--accent4)">—</div>
+          <div class="metric-unit">ms²/Hz</div>
+        </div></div>
+        <div class="panel"><div class="panel-body" style="text-align:center">
+          <div class="metric-label">LF Power (0.04–0.15 Hz)</div>
+          <div class="metric-value" id="freq-lf" style="font-size:22px;color:var(--accent2)">—</div>
+          <div class="metric-unit">ms²/Hz</div>
+        </div></div>
+        <div class="panel"><div class="panel-body" style="text-align:center">
+          <div class="metric-label">HF Power (0.15–0.40 Hz)</div>
+          <div class="metric-value" id="freq-hf" style="font-size:22px;color:var(--accent)">—</div>
+          <div class="metric-unit">ms²/Hz</div>
+        </div></div>
+      </div>
+
+      <div class="grid-2">
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">LF/HF Ratio</span></div>
+          <div class="panel-body chart-area" style="height:160px">
+            <canvas id="lfhf-chart"></canvas>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Band Power Distribution</span></div>
+          <div class="panel-body chart-area" style="height:160px">
+            <canvas id="band-pie-chart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── VIEW: NONLINEAR ──────────────────────────────────── -->
+    <div id="view-nonlinear" class="view-section" style="display:none">
+
+      <div class="grid-2">
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">DFA — Detrended Fluctuation Analysis</span></div>
+          <div class="panel-body">
+            <table class="interval-table" style="margin-bottom:12px">
+              <tr><td>α1 (short-range, 4–16 beats)</td><td id="dfa-a1">—</td><td class="tag-normal">scaling exp.</td></tr>
+              <tr><td>α2 (long-range, 16+ beats)</td><td id="dfa-a2">—</td><td class="tag-normal">scaling exp.</td></tr>
+            </table>
+            <div style="font-size:11px;color:var(--text2);line-height:1.8">
+              α1 ≈ 0.5 → uncorrelated | α1 ≈ 1.0 → healthy fractal | α1 &gt; 1.5 → overly regular
+            </div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Entropy Measures</span></div>
+          <div class="panel-body">
+            <div class="ent-bar-wrap" id="entropy-bars"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recurrence Plot (canvas-drawn) -->
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">Recurrence Plot — Phase Space</span>
+          <span style="font-size:10px;color:var(--text2)">Embedding dim=3 · τ=1</span>
+        </div>
+        <div class="panel-body" style="display:flex;justify-content:center">
+          <canvas id="recurrence-canvas" width="320" height="200" style="border:1px solid var(--border)"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── VIEW: 3D ──────────────────────────────────────────── -->
+    <div id="view-3d" class="view-section" style="display:none">
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">3D Phase Space Trajectory — ECG Reconstruction</span>
+          <span style="font-size:11px;color:var(--text2)">Drag to rotate · Scroll to zoom</span>
+        </div>
+        <div id="canvas-3d"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header">
+          <span class="panel-title">3D HRV Poincaré Surface</span>
+        </div>
+        <div id="canvas-3d-hrv" style="height:280px"></div>
+      </div>
+    </div>
+
+    <!-- ─── VIEW: ARRHYTHMIA ─────────────────────────────────── -->
+    <div id="view-arrhythmia" class="view-section" style="display:none">
+
+      <div class="panel">
+        <div class="panel-header"><span class="panel-title">Arrhythmia Classification</span></div>
+        <div class="panel-body">
+          <div id="findings-list"></div>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Risk Component Breakdown</span></div>
+          <div class="panel-body chart-area">
+            <canvas id="risk-radar-chart"></canvas>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-header"><span class="panel-title">Composite Risk Score</span></div>
+          <div class="panel-body chart-area">
+            <canvas id="risk-bar-chart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+// CONFIGURATION
+// ─────────────────────────────────────────────────────────────────────────────
+const API = 'http://localhost:8765';
+let state = {
+  record: null, fs: 360, ecg: [], peaks: [], annotations: [],
+  analysis: null, rtActive: false, rtStream: null,
+  currentView: 'ecg', charts: {}
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────────────────────────────────────────
+async function init() {
+  setLoadingMsg('Loading record list from server…');
+  try {
+    const r = await fetch(`${API}/api/records`);
+    const d = await r.json();
+    populateRecords(d.records);
+    setLoadingMsg('Checking C++ DSP Engine…');
+    const h = await fetch(`${API}/api/health`);
+    const hd = await h.json();
+    document.getElementById('engine-status').textContent =
+      hd.cpp_engine ? 'C++ Engine ✓' : 'Python Fallback';
+    hideLoading();
+  } catch(e) {
+    setLoadingMsg('⚠ Server offline – running in demo mode');
+    populateRecords(['100','101','102','103','104','105','106','107','108','109',
+                     '111','112','115','117','119','200','201','202','203','205',
+                     '207','208','209','210','212','213','214','215','219','220',
+                     '221','228','231','232','233','234']);
+    setTimeout(hideLoading, 1800);
+  }
+  buildRiskGauge();
+}
+
+function setLoadingMsg(m) {
+  document.getElementById('loading-msg').textContent = m;
+}
+function hideLoading() {
+  document.getElementById('loading-overlay').classList.add('hidden');
+}
+function populateRecords(records) {
+  const sel = document.getElementById('record-select');
+  records.forEach(r => {
+    const opt = document.createElement('option');
+    opt.value = r; opt.textContent = `MIT-BIH ${r}`;
+    sel.appendChild(opt);
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NAVIGATION
+// ─────────────────────────────────────────────────────────────────────────────
+function showView(name) {
+  state.currentView = name;
+  document.querySelectorAll('.view-section').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  const el = document.getElementById(`view-${name}`);
+  if(el) el.style.display = '';
+  document.querySelector(`[data-view="${name}"]`)?.classList.add('active');
+  if(name === '3d' && state.ecg.length) init3D();
+  if(name === 'nonlinear' && state.analysis) drawRecurrencePlot();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LOAD & ANALYZE
+// ─────────────────────────────────────────────────────────────────────────────
+async function loadAndAnalyze() {
+  const recId = document.getElementById('record-select').value;
+  const dur   = document.getElementById('duration-select').value;
+  if(!recId) { alert('Please select a record first'); return; }
+
+  document.getElementById('loading-overlay').classList.remove('hidden');
+  setLoadingMsg(`Loading PhysioNet record ${recId}…`);
+
+  try {
+    setLoadingMsg(`Analyzing ${recId} (${dur}s) via C++ DSP Engine…`);
+    const r = await fetch(`${API}/api/analyze/${recId}?seconds=${dur}`);
+    const d = await r.json();
+    if(d.error) throw new Error(d.error);
+    processAnalysis(d, recId);
+    document.getElementById('source-pill').style.display = '';
+    document.getElementById('source-label').textContent = d.source || 'PhysioNet';
+  } catch(e) {
+    setLoadingMsg('Generating synthetic record (server unavailable)…');
+    await new Promise(r => setTimeout(r, 400));
+    const synth = generateSyntheticAnalysis(recId);
+    processAnalysis(synth, recId);
+  }
+  hideLoading();
+}
+
+function processAnalysis(d, recId) {
+  state.analysis   = d;
+  state.ecg        = d.ecg_filtered || [];
+  state.peaks      = d.peaks || [];
+  state.annotations= d.annotations || [];
+  state.fs         = 360;
+
+  // Update info panel
+  document.getElementById('info-record').textContent = recId;
+  document.getElementById('info-peaks').textContent  = d.n_peaks;
+  document.getElementById('info-time').textContent   = d.compute_ms;
+  document.getElementById('info-engine').textContent = d.cpp_engine ? 'C++ ✓' : 'Python';
+
+  // Sidebar metrics
+  const ht = d.hrv_time || {};
+  const hr = 60000 / (ht.mean_rr || 800);
+  document.getElementById('m-hr').textContent    = hr.toFixed(0);
+  document.getElementById('m-sdnn').textContent  = (ht.sdnn||0).toFixed(1);
+  document.getElementById('m-rmssd').textContent = (ht.rmssd||0).toFixed(1);
+  document.getElementById('m-pnn50').textContent = (ht.pnn50||0).toFixed(1);
+
+  // Severity badge
+  const sev = d.arrhythmia?.severity || 'Normal';
+  const badge = document.getElementById('severity-badge');
+  badge.textContent = sev.toUpperCase();
+  badge.className = 'severity-badge ' +
+    (sev==='Critical'?'sev-critical':sev==='Warning'?'sev-warning':'sev-normal');
+
+  // Risk gauge
+  updateRiskGauge(d.risk?.total||0, d.risk?.category||'Low Risk');
+  document.getElementById('risk-score-label').textContent = (d.risk?.total||0).toFixed(0);
+  document.getElementById('risk-cat').textContent = d.risk?.category||'';
+
+  // Render all views
+  drawECGCanvas();
+  updateIntervals(d.intervals);
+  updateAnnotationList(d.annotations);
+  drawFFTChart(d.fft);
+  updateHRVView(d);
+  updateFrequencyView(d);
+  updateNonlinearView(d);
+  updateArrhythmiaView(d);
+  if(state.currentView === '3d') init3D();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ECG CANVAS RENDERER
+// ─────────────────────────────────────────────────────────────────────────────
+function drawECGCanvas() {
+  const canvas = document.getElementById('ecg-canvas');
+  const wrap   = document.getElementById('ecg-canvas-wrap');
+  const W = wrap.clientWidth, H = wrap.clientHeight;
+  canvas.width = W; canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  const ecg    = state.ecg;
+  const fs     = state.fs;
+  const peaks  = state.peaks;
+  const anns   = state.annotations;
+  if(!ecg.length) return;
+
+  // Show 10 seconds
+  const viewSamp = Math.min(ecg.length, 10 * fs);
+  const data     = ecg.slice(0, viewSamp);
+
+  // Normalize
+  const mn = Math.min(...data), mx = Math.max(...data);
+  const range = mx - mn || 1;
+  const pad = 20;
+  const sy = v => pad + (1 - (v - mn) / range) * (H - 2*pad);
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Grid
+  ctx.strokeStyle = 'rgba(0,229,160,0.06)';
+  ctx.lineWidth = 1;
+  for(let x=0; x<W; x+=W/50) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+  for(let y=0; y<H; y+=H/8)  { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+
+  // Zero line
+  ctx.strokeStyle = 'rgba(0,229,160,0.15)';
+  ctx.setLineDash([4,4]);
+  ctx.beginPath();
+  const zy = sy(0);
+  ctx.moveTo(0, zy); ctx.lineTo(W, zy);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // ECG trace - gradient
+  const grad = ctx.createLinearGradient(0,0,W,0);
+  grad.addColorStop(0,   'rgba(0,229,160,0)');
+  grad.addColorStop(0.05,'rgba(0,229,160,1)');
+  grad.addColorStop(0.95,'rgba(0,170,255,1)');
+  grad.addColorStop(1,   'rgba(0,170,255,0)');
+
+  ctx.beginPath();
+  ctx.strokeStyle = grad;
+  ctx.lineWidth = 1.5;
+  ctx.shadowColor = 'rgba(0,229,160,0.4)';
+  ctx.shadowBlur = 6;
+  for(let i=0; i<data.length; i++) {
+    const x = (i / viewSamp) * W;
+    const y = sy(data[i]);
+    i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+  }
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // R-peaks
+  ctx.fillStyle = '#ff4d6d';
+  peaks.forEach(p => {
+    if(p >= viewSamp) return;
+    const x = (p / viewSamp) * W;
+    const y = sy(ecg[p]);
+    ctx.beginPath();
+    ctx.arc(x, y, 3, 0, Math.PI*2);
+    ctx.fill();
+    // vertical tick
+    ctx.strokeStyle = 'rgba(255,77,109,0.3)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([2,2]);
+    ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke();
+    ctx.setLineDash([]);
+  });
+
+  // Annotation labels
+  anns.slice(0,30).forEach(a => {
+    if(a.sample >= viewSamp) return;
+    const x = (a.sample / viewSamp) * W;
+    const y = sy(ecg[a.sample]) - 12;
+    ctx.fillStyle = a.type==='N' ? '#00e5a0' : '#ffd166';
+    ctx.font = '9px Space Mono, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(a.type, x, y);
+  });
+
+  // Time axis
+  ctx.fillStyle = 'rgba(106,138,154,0.8)';
+  ctx.font = '9px Space Mono, monospace';
+  ctx.textAlign = 'center';
+  for(let s=0; s<=10; s+=2) {
+    const x = (s*fs/viewSamp) * W;
+    ctx.fillText(`${s}s`, x, H-4);
+  }
+
+  document.getElementById('ecg-fs-label').textContent =
+    `${fs}Hz · ${data.length} samples · ${(data.length/fs).toFixed(1)}s`;
+}
+
+// Interactive cursor
+document.getElementById('ecg-canvas').addEventListener('mousemove', e => {
+  const canvas = e.target;
+  const rect   = canvas.getBoundingClientRect();
+  const xf     = (e.clientX - rect.left) / rect.width;
+  const fs     = state.fs;
+  const viewSamp = Math.min((state.ecg||[]).length, 10*fs);
+  const samp   = Math.floor(xf * viewSamp);
+  const t      = (samp/fs).toFixed(3);
+  const v      = state.ecg[samp];
+  if(v !== undefined) {
+    document.getElementById('ecg-cursor-info').textContent = `t=${t}s  v=${v.toFixed(4)}mV`;
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// INTERVAL TABLE
+// ─────────────────────────────────────────────────────────────────────────────
+function updateIntervals(iv) {
+  if(!iv) return;
+  const f = (v, d=1) => v ? v.toFixed(d) + ' ms' : '—';
+  document.getElementById('iv-pr').textContent  = f(iv.pr_ms);
+  document.getElementById('iv-qrs').textContent = f(iv.qrs_ms);
+  document.getElementById('iv-qt').textContent  = f(iv.qt_ms);
+  document.getElementById('iv-qtc').textContent = f(iv.qtc_ms);
+  document.getElementById('iv-st').textContent  = iv.st_elev ? (iv.st_elev*1000).toFixed(1)+' µV' : '—';
+
+  const tag = (id, val, lo, hi, unit='') => {
+    const el = document.getElementById(id);
+    if(!val) { el.textContent='—'; el.className='tag-normal'; return; }
+    if(val<lo||val>hi){ el.textContent='⚠ OUT OF RANGE'; el.className='tag-danger'; }
+    else { el.textContent='✓ Normal'; el.className='tag-normal'; }
+  };
+  tag('iv-pr-tag',  iv.pr_ms,  120, 200);
+  tag('iv-qrs-tag', iv.qrs_ms, 60,  120);
+  tag('iv-qt-tag',  iv.qt_ms,  350, 460);
+  tag('iv-qtc-tag', iv.qtc_ms, 350, 450);
+  if(iv.st_elev) {
+    const st = document.getElementById('iv-st-tag');
+    st.textContent = Math.abs(iv.st_elev)>0.2 ? '⚠ ABNORMAL' : '✓ Normal';
+    st.className   = Math.abs(iv.st_elev)>0.2 ? 'tag-danger' : 'tag-normal';
+  }
+}
+
+function updateAnnotationList(anns) {
+  const el = document.getElementById('ann-list');
+  if(!anns?.length){ el.innerHTML='<span style="color:var(--text2)">No annotations</span>'; return; }
+  const counts = {};
+  anns.forEach(a => counts[a.type] = (counts[a.type]||0)+1);
+  el.innerHTML = Object.entries(counts).map(([t,c]) =>
+    `<div style="display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px solid rgba(255,255,255,.04)">
+      <span style="color:${t==='N'?'var(--good)':t==='V'?'var(--danger)':'var(--accent4)'}">${t}</span>
+      <span style="color:var(--text2)">${t==='N'?'Normal':'t=\'V\'?\'PVC\':t'}</span>
+      <span style="color:var(--accent2)">${c} beats</span>
+    </div>`
+  ).join('');
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CHART FACTORY
+// ─────────────────────────────────────────────────────────────────────────────
+function mkChart(id, type, data, options={}) {
+  const el = document.getElementById(id);
+  if(!el) return null;
+  if(state.charts[id]) state.charts[id].destroy();
+  state.charts[id] = new Chart(el.getContext('2d'), {
+    type, data,
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      animation: { duration: 600 },
+      plugins: { legend: { labels: { color:'#6a8a9a', font:{family:'Space Mono', size:10} } } },
+      scales: {
+        x: { ticks:{ color:'#6a8a9a', font:{family:'Space Mono', size:9} }, grid:{ color:'rgba(0,229,160,0.05)' } },
+        y: { ticks:{ color:'#6a8a9a', font:{family:'Space Mono', size:9} }, grid:{ color:'rgba(0,229,160,0.05)' } }
+      },
+      ...options
+    }
+  });
+  return state.charts[id];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FFT CHART
+// ─────────────────────────────────────────────────────────────────────────────
+function drawFFTChart(fft) {
+  if(!fft?.freqs) return;
+  const maxFreq = 50;
+  const mask = fft.freqs.map((f,i) => f<=maxFreq ? i : -1).filter(i=>i>=0);
+  const freqs = mask.map(i => fft.freqs[i].toFixed(1));
+  const mags  = mask.map(i => fft.magnitude[i]);
+
+  mkChart('fft-chart', 'line', {
+    labels: freqs,
+    datasets: [{
+      label: 'FFT Magnitude', data: mags,
+      borderColor: 'rgba(0,170,255,0.8)', backgroundColor: 'rgba(0,170,255,0.08)',
+      borderWidth: 1.5, pointRadius: 0, fill: true, tension: 0.3
+    }]
+  }, {
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { title: { display:true, text:'Frequency (Hz)', color:'#6a8a9a', font:{size:9} } },
+      y: { title: { display:true, text:'Magnitude', color:'#6a8a9a', font:{size:9} } }
+    }
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HRV VIEW
+// ─────────────────────────────────────────────────────────────────────────────
+function updateHRVView(d) {
+  const ht = d.hrv_time || {};
+  const hr = 60000 / (ht.mean_rr || 800);
+  document.getElementById('hrv-meanrr').textContent = (ht.mean_rr||0).toFixed(1);
+  document.getElementById('hrv-sdnn').textContent   = (ht.sdnn||0).toFixed(1);
+  document.getElementById('hrv-rmssd').textContent  = (ht.rmssd||0).toFixed(1);
+  document.getElementById('hrv-pnn50').textContent  = (ht.pnn50||0).toFixed(1);
+
+  // RR tachogram
+  const rr = d.rr_series || {};
+  if(rr.rr?.length) {
+    mkChart('rr-chart', 'line', {
+      labels: rr.time?.map(t=>t.toFixed(1)) || rr.rr.map((_,i)=>i),
+      datasets: [{
+        label: 'RR Interval', data: rr.rr,
+        borderColor: 'rgba(0,229,160,0.9)', backgroundColor: 'rgba(0,229,160,0.05)',
+        borderWidth: 1.5, pointRadius: 2, pointBackgroundColor:'rgba(0,229,160,1)', fill: true, tension: 0.3
+      }]
+    }, {
+      plugins: { legend:{display:false} },
+      scales: {
+        x: { title:{display:true, text:'Time (s)', color:'#6a8a9a', font:{size:9}} },
+        y: { title:{display:true, text:'RR (ms)', color:'#6a8a9a', font:{size:9}} }
+      }
+    });
+  }
+
+  // Poincaré
+  const pc = d.poincare_xy || {};
+  if(pc.rr_n?.length) {
+    mkChart('poincare-chart', 'scatter', {
+      datasets: [{
+        label: 'RRₙ vs RRₙ₊₁', data: pc.rr_n.map((v,i) => ({x:v, y:pc.rr_np1[i]})),
+        backgroundColor: 'rgba(0,229,160,0.5)', pointRadius: 2.5, pointHoverRadius: 4
+      }]
+    }, {
+      plugins: { legend:{display:false} },
+      scales: {
+        x: { title:{display:true, text:'RRₙ (ms)', color:'#6a8a9a', font:{size:9}} },
+        y: { title:{display:true, text:'RRₙ₊₁ (ms)', color:'#6a8a9a', font:{size:9}} }
+      }
+    });
+  }
+
+  // Poincaré metrics
+  const p = d.poincare || {};
+  document.getElementById('poi-sd1').textContent   = (p.SD1||0).toFixed(2);
+  document.getElementById('poi-sd2').textContent   = (p.SD2||0).toFixed(2);
+  document.getElementById('poi-ratio').textContent = (p.ratio||0).toFixed(3);
+  document.getElementById('poi-csi').textContent   = (p.CSI||0).toFixed(3);
+  document.getElementById('poi-cvi').textContent   = (p.CVI||0).toFixed(3);
+  document.getElementById('poi-area').textContent  = (p.area||0).toFixed(1);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FREQUENCY VIEW
+// ─────────────────────────────────────────────────────────────────────────────
+function updateFrequencyView(d) {
+  const hf = d.hrv_freq || {};
+  document.getElementById('freq-vlf').textContent = (hf.vlf||0).toFixed(4);
+  document.getElementById('freq-lf').textContent  = (hf.lf||0).toFixed(4);
+  document.getElementById('freq-hf').textContent  = (hf.hf||0).toFixed(4);
+
+  // PSD chart with band shading
+  if(hf.freqs?.length) {
+    const freqs = hf.freqs;
+    const psd   = hf.psd;
+    const vlf_d = psd.map((v,i) => freqs[i]>=0.003&&freqs[i]<0.04 ? v : null);
+    const lf_d  = psd.map((v,i) => freqs[i]>=0.04 &&freqs[i]<0.15 ? v : null);
+    const hf_d  = psd.map((v,i) => freqs[i]>=0.15 &&freqs[i]<0.40 ? v : null);
+    const labels= freqs.map(f=>f.toFixed(3));
+    mkChart('psd-chart', 'line', {
+      labels,
+      datasets: [
+        { label:'Full PSD', data:psd, borderColor:'rgba(255,255,255,0.2)', borderWidth:1, pointRadius:0, fill:false },
+        { label:'VLF', data:vlf_d, borderColor:'rgba(255,209,102,0.8)', backgroundColor:'rgba(255,209,102,0.15)', borderWidth:2, pointRadius:0, fill:true, spanGaps:true },
+        { label:'LF',  data:lf_d,  borderColor:'rgba(0,170,255,0.8)',   backgroundColor:'rgba(0,170,255,0.15)',   borderWidth:2, pointRadius:0, fill:true, spanGaps:true },
+        { label:'HF',  data:hf_d,  borderColor:'rgba(0,229,160,0.8)',   backgroundColor:'rgba(0,229,160,0.15)',   borderWidth:2, pointRadius:0, fill:true, spanGaps:true },
+      ]
+    }, {
+      scales: {
+        x: { title:{display:true, text:'Frequency (Hz)', color:'#6a8a9a', font:{size:9}} },
+        y: { type:'logarithmic', title:{display:true, text:'PSD (ms²/Hz)', color:'#6a8a9a', font:{size:9}} }
+      }
+    });
+  }
+
+  // LF/HF ratio bar
+  const lfhf = hf.lf_hf_ratio || 0;
+  mkChart('lfhf-chart', 'bar', {
+    labels: ['LF/HF Ratio'],
+    datasets: [{
+      data: [lfhf],
+      backgroundColor: lfhf>4?'rgba(255,77,109,0.6)':lfhf<0.5?'rgba(0,229,160,0.6)':'rgba(0,170,255,0.6)',
+      borderColor: 'transparent'
+    }]
+  }, {
+    plugins: { legend:{display:false}, tooltip:{ callbacks:{ label: ctx=>`${ctx.parsed.y.toFixed(3)}` } } },
+    scales: { y: { max: 6, min: 0 } }
+  });
+
+  // Band pie
+  mkChart('band-pie-chart', 'doughnut', {
+    labels: ['VLF', 'LF', 'HF'],
+    datasets: [{ data:[hf.vlf||0, hf.lf||0, hf.hf||0],
+      backgroundColor:['rgba(255,209,102,0.7)','rgba(0,170,255,0.7)','rgba(0,229,160,0.7)'],
+      borderColor:'transparent', borderWidth:0 }]
+  }, {
+    cutout: '60%',
+    plugins: { legend:{ position:'bottom', labels:{color:'#6a8a9a', font:{family:'Space Mono', size:9}} } },
+    scales: { x:{display:false}, y:{display:false} }
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NONLINEAR VIEW
+// ─────────────────────────────────────────────────────────────────────────────
+function updateNonlinearView(d) {
+  const dfa = d.dfa || {};
+  document.getElementById('dfa-a1').textContent = (dfa.alpha1||0).toFixed(4);
+  document.getElementById('dfa-a2').textContent = (dfa.alpha2||0).toFixed(4);
+
+  // Entropy bars
+  const ent = d.entropy || {};
+  const bars = document.getElementById('entropy-bars');
+  const items = [
+    { name:'ApEn',    val:ent.apen  ||0, max:2.0, color:'var(--accent)' },
+    { name:'SampEn',  val:ent.sampen||0, max:2.0, color:'var(--accent2)' },
+    { name:'SDNN/ms', val:Math.min((d.hrv_time?.sdnn||0)/200,1)*2, max:2.0, color:'var(--accent4)' },
+    { name:'RMSSD',   val:Math.min((d.hrv_time?.rmssd||0)/100,1)*2, max:2.0, color:'#b388ff' },
+  ];
+  bars.innerHTML = items.map(it => `
+    <div class="ent-bar-row">
+      <span class="ent-bar-name">${it.name}</span>
+      <div class="ent-bar-bg"><div class="ent-bar-fill" style="width:${(it.val/it.max*100).toFixed(1)}%;background:${it.color}"></div></div>
+      <span class="ent-bar-val">${it.val.toFixed(3)}</span>
+    </div>`).join('');
+
+  drawRecurrencePlot();
+}
+
+function drawRecurrencePlot() {
+  const canvas = document.getElementById('recurrence-canvas');
+  if(!canvas || !state.ecg.length) return;
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const N = 80;
+  const m = 3, tau = 6;  // embedding
+  const data = state.ecg.slice(0, N*tau+N);
+  const eps  = (Math.max(...data) - Math.min(...data)) * 0.15;
+
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle = '#040810';
+  ctx.fillRect(0,0,W,H);
+
+  const embed = (i) => [data[i], data[i+tau]||0, data[i+2*tau]||0];
+  const dist  = (a,b) => Math.sqrt(a.reduce((s,v,k)=>(s+(v-b[k])**2),0));
+
+  const cellW = W/N, cellH = H/N;
+  for(let i=0; i<N; i++) {
+    for(let j=0; j<N; j++) {
+      const d = dist(embed(i), embed(j));
+      if(d < eps) {
+        const c = i===j ? 255 : Math.floor(255*(1-d/eps));
+        ctx.fillStyle = i===j ? '#00e5a0' : `rgba(0,170,255,${c/255})`;
+        ctx.fillRect(i*cellW, j*cellH, cellW, cellH);
+      }
+    }
+  }
+  ctx.strokeStyle = 'rgba(0,229,160,0.3)';
+  ctx.strokeRect(0,0,W,H);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ARRHYTHMIA VIEW
+// ─────────────────────────────────────────────────────────────────────────────
+function updateArrhythmiaView(d) {
+  const arr = d.arrhythmia || {};
+  const findings = arr.findings || [];
+  const findingsEl = document.getElementById('findings-list');
+  findingsEl.innerHTML = findings.map(f => {
+    const color = f.name.toLowerCase().includes('normal') ? 'var(--good)' :
+                  f.confidence > 0.85 ? 'var(--danger)' : 'var(--warning)';
+    return `
+    <div class="finding-item">
+      <div class="finding-dot" style="background:${color}"></div>
+      <div style="flex:1">
+        <div style="font-size:13px;color:var(--text)">${f.name}</div>
+        <div style="font-size:10px;color:var(--text2)">ICD-10: ${f.code} · Confidence: ${(f.confidence*100).toFixed(0)}%</div>
+        <div class="conf-bar" style="width:${(f.confidence*100).toFixed(0)}%;background:${color};opacity:.6"></div>
+      </div>
+      <div style="font-size:16px;font-weight:700;color:${color}">${(f.confidence*100).toFixed(0)}%</div>
+    </div>`;
+  }).join('');
+
+  // Risk radar
+  const risk = d.risk || {};
+  const comps = risk.components || {};
+  const labels = Object.keys(comps);
+  const vals   = Object.values(comps);
+  mkChart('risk-radar-chart', 'radar', {
+    labels,
+    datasets: [{
+      label: 'Risk Components', data: vals,
+      borderColor: 'rgba(255,77,109,0.8)', backgroundColor: 'rgba(255,77,109,0.15)',
+      borderWidth: 2, pointBackgroundColor: 'rgba(255,77,109,1)'
+    }]
+  }, {
+    plugins: { legend:{display:false} },
+    scales: { r: {
+      ticks:{ color:'#6a8a9a', backdropColor:'transparent', font:{size:8} },
+      grid:{ color:'rgba(255,255,255,0.05)' },
+      pointLabels:{ color:'#6a8a9a', font:{size:9} }
+    } }
+  });
+
+  // Risk bar chart
+  mkChart('risk-bar-chart', 'bar', {
+    labels,
+    datasets: [{
+      label:'Risk Score', data:vals,
+      backgroundColor: vals.map(v => v>10?'rgba(255,77,109,0.6)':v>5?'rgba(255,209,102,0.6)':'rgba(0,229,160,0.6)'),
+      borderColor:'transparent'
+    }]
+  }, {
+    indexAxis:'y',
+    plugins: { legend:{display:false} },
+    scales: {
+      x:{ max:20, ticks:{color:'#6a8a9a',font:{size:9}} },
+      y:{ ticks:{color:'#6a8a9a',font:{size:9}} }
+    }
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RISK GAUGE (canvas half-donut)
+// ─────────────────────────────────────────────────────────────────────────────
+function buildRiskGauge() {
+  const canvas = document.getElementById('risk-gauge');
+  canvas.width=140; canvas.height=80;
+  drawGauge(0);
+}
+
+function updateRiskGauge(val, cat) {
+  drawGauge(val);
+}
+
+function drawGauge(val) {
+  const canvas = document.getElementById('risk-gauge');
+  const ctx = canvas.getContext('2d');
+  const W=140, H=80, cx=70, cy=72, r=55;
+  ctx.clearRect(0,0,W,H);
+
+  // Background arc
+  ctx.beginPath();
+  ctx.arc(cx,cy,r,Math.PI,0);
+  ctx.strokeStyle='rgba(255,255,255,0.06)';
+  ctx.lineWidth=12; ctx.lineCap='round';
+  ctx.stroke();
+
+  // Value arc
+  const pct = Math.min(val/100,1);
+  const endAngle = Math.PI + pct*Math.PI;
+  const grad = ctx.createLinearGradient(0,0,W,0);
+  grad.addColorStop(0,'#00e5a0');
+  grad.addColorStop(0.5,'#ffd166');
+  grad.addColorStop(1,'#ff4d6d');
+  ctx.beginPath();
+  ctx.arc(cx,cy,r,Math.PI,endAngle);
+  ctx.strokeStyle=grad;
+  ctx.lineWidth=12; ctx.lineCap='round';
+  ctx.stroke();
+
+  // Tick markers
+  [0,25,50,75,100].forEach(tick => {
+    const a = Math.PI + (tick/100)*Math.PI;
+    const x1 = cx + (r-18)*Math.cos(a), y1 = cy + (r-18)*Math.sin(a);
+    const x2 = cx + (r-8)*Math.cos(a),  y2 = cy + (r-8)*Math.sin(a);
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2);
+    ctx.strokeStyle='rgba(255,255,255,0.2)'; ctx.lineWidth=1;
+    ctx.stroke();
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 3D VISUALIZATION (Three.js)
+// ─────────────────────────────────────────────────────────────────────────────
+let _3dRenderer1=null, _3dRenderer2=null;
+
+function init3D() {
+  if(!state.ecg.length) return;
+  build3DPhaseSpace();
+  build3DHRVSurface();
+}
+
+function build3DPhaseSpace() {
+  const container = document.getElementById('canvas-3d');
+  if(_3dRenderer1) { _3dRenderer1.dispose(); container.innerHTML=''; }
+
+  const W = container.clientWidth, H = 280;
+  const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.setClearColor(0x000000, 0);
+  container.appendChild(renderer.domElement);
+  _3dRenderer1 = renderer;
+
+  const scene  = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(55, W/H, 0.01, 1000);
+  camera.position.set(3,2,3);
+
+  // Ambient + directional light
+  scene.add(new THREE.AmbientLight(0x112233, 1.5));
+  const dLight = new THREE.DirectionalLight(0x00e5a0, 0.8);
+  dLight.position.set(5,5,5); scene.add(dLight);
+
+  // Phase space trajectory: (x(t), x(t+τ), x(t+2τ))
+  const ecg  = state.ecg;
+  const tau  = Math.round(state.fs * 0.05); // 50ms delay
+  const pts  = [];
+  const N    = Math.min(ecg.length - 2*tau, 2000);
+  const mn   = Math.min(...ecg), mx = Math.max(...ecg);
+  const norm = v => (v-mn)/(mx-mn)*2 - 1;
+
+  for(let i=0; i<N; i++) {
+    pts.push(norm(ecg[i]), norm(ecg[i+tau]), norm(ecg[i+2*tau]));
+  }
+
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+
+  // Color by velocity (speed along trajectory)
+  const colors = [];
+  for(let i=0; i<N; i++) {
+    const t = i/N;
+    colors.push(t*0+0.0, 0.55+t*0.45, 0.55+t*0.05); // teal → bright green
+  }
+  geom.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+
+  const mat = new THREE.LineBasicMaterial({ vertexColors:true, opacity:0.85, transparent:true });
+  scene.add(new THREE.Line(geom, mat));
+
+  // Axes
+  const axMat = new THREE.LineBasicMaterial({ color:0x223344 });
+  [
+    [-1.2,0,0, 1.2,0,0], [0,-1.2,0, 0,1.2,0], [0,0,-1.2, 0,0,1.2]
+  ].forEach(([x1,y1,z1,x2,y2,z2]) => {
+    const g = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(x1,y1,z1), new THREE.Vector3(x2,y2,z2)
+    ]);
+    scene.add(new THREE.Line(g, axMat));
+  });
+
+  // Grid plane
+  const grid = new THREE.GridHelper(2.5, 12, 0x0a1a2a, 0x0a1a2a);
+  grid.position.y = -1.2;
+  scene.add(grid);
+
+  // OrbitControls via manual drag
+  let isDragging=false, prevMouse={x:0,y:0};
+  let theta=0.4, phi=0.6, radius=4;
+  renderer.domElement.addEventListener('mousedown', e => { isDragging=true; prevMouse={x:e.clientX,y:e.clientY}; });
+  window.addEventListener('mouseup', ()=>isDragging=false);
+  window.addEventListener('mousemove', e => {
+    if(!isDragging) return;
+    theta -= (e.clientX-prevMouse.x)*0.01;
+    phi   -= (e.clientY-prevMouse.y)*0.01;
+    phi = Math.max(0.1, Math.min(Math.PI-0.1, phi));
+    prevMouse={x:e.clientX,y:e.clientY};
+  });
+  renderer.domElement.addEventListener('wheel', e => { radius = Math.max(1.5,Math.min(10,radius+e.deltaY*0.005)); e.preventDefault(); }, {passive:false});
+
+  function animate() {
+    requestAnimationFrame(animate);
+    theta += 0.003;
+    camera.position.set(
+      radius*Math.sin(phi)*Math.sin(theta),
+      radius*Math.cos(phi),
+      radius*Math.sin(phi)*Math.cos(theta)
+    );
+    camera.lookAt(0,0,0);
+    renderer.render(scene, camera);
+  }
+  animate();
+}
+
+function build3DHRVSurface() {
+  const container = document.getElementById('canvas-3d-hrv');
+  if(_3dRenderer2) { _3dRenderer2.dispose(); container.innerHTML=''; }
+
+  const W = container.clientWidth || 600, H = 280;
+  const renderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
+  renderer.setSize(W, H);
+  renderer.setClearColor(0x000000, 0);
+  container.appendChild(renderer.domElement);
+  _3dRenderer2 = renderer;
+
+  const scene  = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(50, W/H, 0.01, 1000);
+  camera.position.set(4,3,4);
+
+  scene.add(new THREE.AmbientLight(0x223355, 2));
+  const dL = new THREE.DirectionalLight(0x00aaff, 1);
+  dL.position.set(3,5,3); scene.add(dL);
+
+  // Build Poincaré surface from RR series
+  const rr = state.analysis?.rr_series?.rr || [];
+  const SIZE = Math.min(rr.length, 50);
+  if(SIZE < 4) { renderer.render(scene,camera); return; }
+
+  const mn = Math.min(...rr), mx = Math.max(...rr), range = mx-mn||1;
+  const norm = v => (v-mn)/range;
+
+  // Create mesh: each point (RRn, RRn+1, RRn+2)
+  const pts = [];
+  for(let i=0; i<SIZE-2; i++) {
+    const x = norm(rr[i])*2-1;
+    const z = norm(rr[i+1])*2-1;
+    const y = norm(rr[i+2])*2-1;
+    pts.push(x, y, z);
+  }
+
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute('position', new THREE.Float32BufferAttribute(pts,3));
+
+  // Add color by y
+  const cols = [];
+  for(let i=0; i<pts.length/3; i++) {
+    const t = (pts[i*3+1]+1)/2;
+    cols.push(0, t, 1-t*0.3);
+  }
+  geom.setAttribute('color', new THREE.Float32BufferAttribute(cols,3));
+
+  const mat = new THREE.PointsMaterial({ vertexColors:true, size:0.06, transparent:true, opacity:.9 });
+  scene.add(new THREE.Points(geom, mat));
+
+  const lineMat = new THREE.LineBasicMaterial({ vertexColors:true, opacity:.4, transparent:true });
+  scene.add(new THREE.Line(geom, lineMat));
+
+  // Grid
+  const grid = new THREE.GridHelper(2.5,10,0x0a1a2a,0x0a1a2a);
+  grid.position.y=-1; scene.add(grid);
+
+  let theta=0.5, phi=0.7, radius=5, dragging=false, prev={x:0,y:0};
+  renderer.domElement.addEventListener('mousedown', e=>{dragging=true;prev={x:e.clientX,y:e.clientY};});
+  window.addEventListener('mouseup',()=>dragging=false);
+  window.addEventListener('mousemove',e=>{
+    if(!dragging) return;
+    theta-=(e.clientX-prev.x)*0.01; phi-=(e.clientY-prev.y)*0.01;
+    phi=Math.max(.1,Math.min(Math.PI-.1,phi)); prev={x:e.clientX,y:e.clientY};
+  });
+  renderer.domElement.addEventListener('wheel',e=>{radius=Math.max(2,Math.min(12,radius+e.deltaY*.005));e.preventDefault();},{passive:false});
+
+  function animate() {
+    requestAnimationFrame(animate);
+    theta+=0.004;
+    camera.position.set(radius*Math.sin(phi)*Math.sin(theta),radius*Math.cos(phi),radius*Math.sin(phi)*Math.cos(theta));
+    camera.lookAt(0,0,0);
+    renderer.render(scene,camera);
+  }
+  animate();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// REAL-TIME STREAMING
+// ─────────────────────────────────────────────────────────────────────────────
+let _rtBuffer = [];
+let _rtAnimFrame = null;
+
+function startRealtime() {
+  const recId = document.getElementById('record-select').value;
+  if(!recId) { alert('Select a record first'); return; }
+  if(state.rtActive) {
+    stopRealtime(); return;
+  }
+  state.rtActive = true;
+  document.getElementById('rt-btn').textContent = '⬛ STOP';
+  document.getElementById('rt-indicator').style.display='inline-block';
+  _rtBuffer = [];
+
+  state.rtStream = new EventSource(`${API}/api/stream/${recId}`);
+  state.rtStream.onmessage = e => {
+    const d = JSON.parse(e.data);
+    _rtBuffer.push(...d.samples);
+    if(_rtBuffer.length > 10*state.fs) _rtBuffer = _rtBuffer.slice(-10*state.fs);
+    state.ecg = _rtBuffer;
+    drawECGCanvas();
+  };
+  state.rtStream.onerror = () => stopRealtime();
+}
+
+function stopRealtime() {
+  state.rtActive = false;
+  state.rtStream?.close();
+  document.getElementById('rt-btn').textContent = '⬤ LIVE';
+  document.getElementById('rt-indicator').style.display='none';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SYNTHETIC ANALYSIS (full offline demo when server unavailable)
+// ─────────────────────────────────────────────────────────────────────────────
+function generateSyntheticAnalysis(recId) {
+  const seed = recId.charCodeAt(0)*17 + recId.charCodeAt(1||0)*7;
+  const rng = (() => { let s=seed; return ()=>{s=(s*1664525+1013904223)&0xffffffff;return(s>>>0)/0xffffffff;} })();
+
+  const fs=360, dur=60, n=fs*dur;
+  const hr=55+rng()*30;
+  const rr_mean=60000/hr;
+
+  // Build ECG
+  const t = Array.from({length:n},(_,i)=>i/fs);
+  const ecg = new Array(n).fill(0);
+  const peaks_arr = [];
+  let tp=rr_mean/1000*0.1;
+  const WAVES=[[-0.12,.05,.25],[-.05,.01,-.15],[0,.04,1.6],[.05,.01,-.35],[.20,.10,.35]];
+  while(tp < dur-.5) {
+    const r_idx=Math.round(tp*fs);
+    if(r_idx<n) peaks_arr.push(r_idx);
+    WAVES.forEach(([dt,sig,amp])=>{
+      const c=tp+dt;
+      for(let i=Math.max(0,Math.floor((c-3*sig)*fs));i<Math.min(n,Math.ceil((c+3*sig)*fs));i++)
+        ecg[i]+=amp*Math.exp(-.5*((i/fs-c)/sig)**2);
+    });
+    tp+=rr_mean/1000*(1+rng()*.1-.05);
+  }
+  for(let i=0;i<n;i++) ecg[i]+=(.02*(rng()-.5));
+
+  const rr_ms = peaks_arr.slice(1).map((p,i)=>(p-peaks_arr[i])*1000/fs);
+  const mean_rr=rr_ms.reduce((a,b)=>a+b,0)/rr_ms.length;
+  const diff_rr=rr_ms.slice(1).map((v,i)=>v-rr_ms[i]);
+  const sdnn=Math.sqrt(rr_ms.reduce((a,v)=>a+(v-mean_rr)**2,0)/rr_ms.length);
+  const rmssd=Math.sqrt(diff_rr.reduce((a,v)=>a+v*v,0)/diff_rr.length);
+  const pnn50=100*diff_rr.filter(v=>Math.abs(v)>50).length/diff_rr.length;
+
+  const rr_n=rr_ms.slice(0,-1), rr_np1=rr_ms.slice(1);
+  const x1=rr_n.map((v,i)=>(rr_np1[i]-v)/Math.sqrt(2));
+  const x2=rr_n.map((v,i)=>(rr_np1[i]+v)/Math.sqrt(2));
+  const SD1=Math.sqrt(x1.reduce((a,v)=>a+v*v,0)/x1.length);
+  const SD2=Math.sqrt(Math.max(0,x2.reduce((a,v)=>a+v*v,0)/x2.length-x1.reduce((a,v)=>a+v*v,0)/x1.length));
+
+  const vlf=rng()*.05, lf=rng()*.3, hf=rng()*.2;
+  const lf_hf_ratio=lf/(hf||.01);
+
+  const pr_ms=120+rng()*60, qrs_ms=70+rng()*50, qt_ms=380+rng()*80;
+  const qtc_ms=qt_ms/Math.sqrt(mean_rr/1000);
+
+  const risk_total=10+rng()*60;
+  const risk_cat=risk_total<20?'Low Risk':risk_total<40?'Moderate Risk':risk_total<60?'High Risk':'Very High Risk';
+
+  const sev=risk_total>60?'Critical':risk_total>35?'Warning':'Normal';
+  const findings=risk_total>60?
+    [{name:'Atrial Fibrillation',code:'I48.0',confidence:.85},{name:'Reduced HRV',code:'HRV-L2',confidence:.78}]:
+    risk_total>35?
+    [{name:'Tachycardia',code:'R00.0',confidence:.82}]:
+    [{name:'Normal Sinus Rhythm',code:'I00',confidence:.96}];
+
+  // FFT (simple)
+  const fft_n=256, fft_mag=[], fft_freqs=[];
+  for(let i=0;i<=fft_n/2;i++){fft_freqs.push(i*fs/fft_n);fft_mag.push(rng()*.1*Math.exp(-i/20));}
+
+  // PSD (simple)
+  const psd_n=128;
+  const freqs_psd=Array.from({length:psd_n},(_,i)=>i*4/psd_n);
+  const psd_vals=freqs_psd.map(f=>
+    (f>.003&&f<.04?vlf:.0001)+
+    (f>.04&&f<.15?lf:.0001)+
+    (f>.15&&f<.40?hf:.0001)+rng()*.0001
+  );
+
+  const rr_series_t=peaks_arr.slice(1).map(p=>p/fs);
+
+  return {
+    status:'ok', compute_ms:12, cpp_engine:false,
+    n_peaks:peaks_arr.length, peaks:peaks_arr.slice(0,200),
+    ecg_filtered:ecg.slice(0,10*fs),
+    hrv_time:{mean_rr,sdnn,rmssd,pnn50,sdsd:sdnn*.8},
+    hrv_freq:{vlf,lf,hf,lf_hf_ratio,total:vlf+lf+hf,freqs:freqs_psd,psd:psd_vals},
+    poincare:{SD1,SD2,ratio:SD1/(SD2||1),CSI:4*SD2/(4*SD1||1),CVI:Math.log10(4*SD1*4*SD2||1),area:Math.PI*SD1*SD2},
+    poincare_xy:{rr_n,rr_np1},
+    dfa:{alpha1:.5+rng()*.8, alpha2:.8+rng()*.6},
+    intervals:{pr_ms,qrs_ms,qt_ms,qtc_ms,st_elev:(rng()-.5)*.1},
+    entropy:{apen:.4+rng()*.6,sampen:.3+rng()*.5},
+    fft:{freqs:fft_freqs,magnitude:fft_mag},
+    arrhythmia:{findings,severity:sev,heart_rate:hr.toFixed(1)},
+    risk:{total:risk_total,category:risk_cat,components:{
+      'Heart Rate':5+rng()*15,'SDNN (HRV)':3+rng()*12,'LF/HF Autonomic':2+rng()*10,
+      'QTc Interval':1+rng()*8,'Poincaré':2+rng()*6,'DFA α1':1+rng()*5,'Entropy':0+rng()*4
+    }},
+    rr_series:{time:rr_series_t,rr:rr_ms},
+    annotations:peaks_arr.slice(0,100).map(p=>({sample:p,type:rng()>.92?'V':'N'})),
+    source:'Synthetic ECG (demo mode)'
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RESPONSIVE RESIZE
+// ─────────────────────────────────────────────────────────────────────────────
+window.addEventListener('resize', () => {
+  if(state.ecg.length) drawECGCanvas();
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BOOT
+// ─────────────────────────────────────────────────────────────────────────────
+init();
+</script>
+</body>
+</html>
